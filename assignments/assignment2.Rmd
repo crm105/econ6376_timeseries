@@ -1,0 +1,188 @@
+---
+title: "Chris Montgomery \n  TS Assignment 2"
+output:
+  html_notebook: default
+  pdf_document: default
+  word_document: default
+---
+
+<font size = "6", color = "Blue"> Introduction </font>
+
+For the purposes of part one of this assignment, the following section will analyze "soybean prices received" data. This data, collected by the USDA National Agriculture Statistics Service, depicts the average monthly price received per bushel by domestic soybean farmers. Price averages are collected by the monthly Agriculture Resource Management Survey (ARMS). This time series contains 699 observations covering the period beginning January, 1960 to March 2018. Prices are are not adjusted for inflation.
+```{r echo=FALSE}
+#This package reads excel, needed to import our spreadsheet
+library("readxl")
+df <-read_excel("us_price_received.xls", sheet = "soybean_ts", skip = 1)
+
+#Convert our prices received column into a monthly time series
+ts <- ts(df$`Price ($/bu)`, start = c(1960, 1), freq = 12)
+```
+Below is a plot of the time series. Upon visual inspection, it would appear that a positive drift parameter is present in the series. Conceptually this makes sense, as one would typically expect general inflation to drive prices up over time. Additional tests could more formally elucidate the presence of a drift parameter.  
+
+```{r}
+#plot (ts)
+library(ggplot2)
+library(ggfortify)
+p <- autoplot(ts, xlab = "Year", ylab = "Nominal Price ($/bu)", main = " Figure 1: US Soybean Producer Prices Received")
+p + labs(caption = "Source: USDA National Agriculture Statistics Service \n https://www.nass.usda.gov/Charts_and_Maps/Agricultural_Prices/pricesb.php")
+
+```
+Visual inspection of the correlogram shows some decay in correlation coeficients over time. This could be suggestive of the presence of a near-unit root. This plot could suggest that the time series does not follow a random walk. 
+
+```{r}
+acf <- acf(ts, main = "")
+``` 
+
+Below is a plot of the first difference of the time series as well as its acf. The ACF plot shows that the first and second lags of the first-differenced time series are positive and statistically significantly correlated with the first difference. This suggests that taking the first difference failed to remove all autocorrelation in the series. In addition, the spike at the 12th lag appears to be significant at the 95% confidence level. This suggests that some seasonality may exist in the data
+
+```{r}
+autoplot(diff(ts), ylab = "Price $/Bu", xlab = "Year", main = "First Difference, Prices Received")
+
+acf(diff(ts), main = "ACF of First Difference")
+
+```
+
+Comparing the below descriptive statistics for the entire time series with a subset containing observations between 2000 and 2018 indicate non-stationarity. Here, the mean of the post 2000 subset is $2.60/bushel higher than the mean of the entire series. Again, this is fairly intuitive as we would expect to see a positive drift parameter associated with general inflation over time.
+
+```{r}
+library("tseries")
+summary(ts)
+```
+  
+```{r}
+summary (window(ts, start = c(2000, 1)))
+```
+
+<font size="6", color = "blue" > Testing a Random Walk Hypothesis   </font> 
+
+Looking at the mean of our first difference does not suggest the presence of a drift
+parameter. The mean is not significantly different from zero. However, the mean of the differenced series is the correct sign for the presence of a positive drift parameter 
+
+```{r}
+ 
+diff_ts <- diff(ts)
+mean(diff_ts)
+mean(diff_ts)+c(-1.96,1.96)*sd(diff_ts)/sqrt(length(diff_ts))
+
+```
+
+Fitting a random walk model suggests that the the drift parameter (intercept term) is positive and statistically signifcant at the 95% confidence level. At the same time, the coefficient of the first lag is statistically different from one at the 95% confidence level. This supports the presence of a near unit root, as opposed to a random walk. 
+
+
+```{r}
+#Fitting a Randon Walk  model
+library(dyn)
+reg <-dyn$lm(ts ~ lag(ts,-1))
+
+
+
+confint(reg,  level = 0.95)
+```
+
+Subsetting the series beginning with observations in 2000 changes the significance levels of both the lag coefficient and drift parameter. In this case, the lag coefficient is no longer signifiant from one, while the drift parameter is no longer significantly different from zero. This could be explained in at least in part due to increases in the standard errors of the regression coefficients from running the regression against a smaller sample.  
+
+```{r}
+
+ts_2k <- window (ts, start= c(2000,1))
+reg <- dyn$lm(ts_2k ~ lag(ts_2k,-1))
+summary(reg)
+
+
+confint(reg,  level = 0.95)
+```
+
+Applying an Augmented Dicky Fuller test fails to reject the null hypothesis of non-stationarity. Thus, according to the ADF test we also cannot reject the possibility of a unit root being present.  
+
+```{r}
+library(tseries)
+adf.test(ts)
+adf.test(ts, k = 0)
+```
+
+<font size = "6", color = "Blue"> Part II </font>
+
+The below code creates a random walk series of 1000 observations. Knowing the data generation process instills confidence that the series is stationary with a mean zero.   
+
+```{r}
+
+x  <- rnorm(1000)
+layout(1:1)
+mean(x)
+plot(x,type="l", main = "Random Data with Mean = 0 and Std. Dev = 1")
+
+
+
+```
+
+Fitting an ARIMA (1,1,1) to the original random series proves to be analogous to fitting a an ARMA (1,1) to the first difference of the series. This should be fairly intuitive, as the integrated term in an arima model specifies a difference transformation. In this case, the ARIMA (1,1,1) model specifies an ARMA (1,1) applied to the first difference of the time series. However, both AR and MA coefficients very  slightly. This can be explained by the presence of an intercept term in the ARMA (1,1) model. By default, the ARIMA (1,1,1) model does not include a drift paramter.  
+
+
+```{r}
+#Coefficients and standard errors are pretty darn close. But they're still off a bit. 
+#Weird...
+
+arima <- arima (x, order = c(1,1,1))
+arma <- arima (diff(x), order = c(1,0,1))
+arima$coef
+arma$coef
+
+```
+
+It's important to note that the intercept term represents a drift parameter. As such, its presence (or absence) has significant implications for the fit of a model. Thus, one should always consider whether a model is better fit by the presence of a drift parameter, and if so, write pick the right model in R. 
+
+
+<font size = "6", color = "Blue"> Part III </font>
+<font color = Red>
+Xt = 5 + .5Xt-1 + Wt 
+</font>
+
+The above equation represents a mean stationary time series. Since the coefficient of the lagged term is less than one, the series converges to a stationary mean as time progresses. A similation shows that as t approaches infinity, the mean of the time series produced by the above equation approaches 10.  
+
+```{r}
+x <- w <- rnorm(1000)
+for (t in 2:1000) x[t] <- 5 + (.5 *x[t-1]) +w[t]
+
+x<- ts(x)
+adf.test(x)
+
+
+autoplot(x, type="l", main = " x[t] = 5 + (.5 + x[t-1]) + w[t]")
+```
+
+<font color = "red">
+Xt = 1 + Xt-1 + Wt + .3Wt
+</font>
+
+The above equation is not mean stationary. In this case, the alpha1 parameter value of one and the presence of a positive drift parameter follows a random walk with drift. Simulating the above equation validates the non-stationarity and positive drift of the time series. 
+
+```{r}
+#To better demonstrate the random walk, the drift parameter was reduced by a factor of 10. This produces effectively the same output as increasing the rnorm values by a factor of 10 
+x <- w <- rnorm(1000)
+for (t in 2:1000) x[t] <- .1 + x[t-1] +w[t] + .3*w[t-1]
+
+x <- ts(x)
+autoplot(x, type="l", main = "1 + x[t-1] +w[t] + .3*w[t-1]", xlab = "time")
+
+
+adf.test(x)
+```
+
+One rather simple way to transform the above time series involves taking its first difference. In this case, the transformed equation can be shown as follows: 
+
+<font color = "red"> x[t] - x[t-1] = 1 + w[t] + .3w[t-1] </font>
+
+By taking the first difference time series now takes on a conditional mean of 1 (the new intercept) with each observation being a function of the current and previous time period's white noise term. The presence of a MA(1) term does not affect the stationarity of the series, as the conditional expectation of each white noise term is zero. The below first difference plot and ADF test support this explanation. 
+
+```{r}
+diff_x <- diff(x)
+autoplot(diff_x, type = 'l', main = "Plot of First Difference")
+
+
+
+
+```
+
+
+
+
+   
