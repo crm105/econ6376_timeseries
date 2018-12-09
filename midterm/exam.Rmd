@@ -1,0 +1,104 @@
+---
+title: "Time Series Mid-Term Exam"
+author: "Chris Montgomery"
+date: "11/28/2018"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tseries)
+library(ggplot2)
+library(ggfortify)
+```
+
+<font face = "bold", size =16> Problem II </font><p>
+<font size = 8> Consider the following equation: </font>
+$$x_t = 3 - .5x_{t-1}  $$
+
+
+a.) The above function is stationary in the mean. We know this because we have an AR(1) series with an $a_1$ parameter < 1. The long run mean can be obtained from the function: 
+$$Mean(x_t) =  a_0/(1-a1)$$
+$$= 3/(1+ .5) $$
+$$ = 2$$
+
+Simulation further demonstrates the mean of the above series converges to 2
+
+```{r} 
+set.seed(3)
+x <- rnorm(10)
+x[1] = 0
+for (t in 2:10){
+  x[t] <- 3 -.5*x[t-1]
+  
+}
+autoplot(ts(x))
+
+x[4]
+x
+```
+
+
+
+
+While the long run mean of the series is 2, we should note that the series requires several iterations before reaching equillibrium. For example, the above simulation shows $x_4$ = 2.25. In fact, the series continuously oscillates around the long run mean as it converges to the mean, a characteristic of the negative $a_1$ parameter. 
+
+
+
+
+
+
+<font face = "bold", size = 16>Problem III </font> 
+
+$$x_t = 3 + w_t = .5w_{t-1}$$
+The above function represents a first-order moving average process,
+where $W$ represents a white noise sequence (0, $\sigma^2$). We know this function is mean stationary because it is composed of a constant added to a white noise process with an unconditional mean of 0. Remember, for all values of t $$ E[w_t] = E[ w_t + .5w_{t-1}] \\= E[w_t] + E[w_{t-1}]\\ = 0$$ and $$E[x_t] = 3 + E[w_t]\\ = 3$$ Thus, given the above MA(1) process with an intercept term of 3, the expected unconditional mean is 3. Simulating this process supports the expectation of stationarity and the theorized mean of 3. <p>
+
+```{r}
+set.seed(4)
+x <- w <- rnorm(100)
+for (t in 2:100){
+  x[t] <- 3 + w[t] + (.5 * w[t-1])
+}
+plot(x, type = "l")
+mean(x)
+```
+Augmented Dickey Fuller test further demonstrates that the MA(1) process is stationary. We reject the null hypothesis of non-stationarity at the .1 level. Simulating with additional observations reduces the p-value further, which is to be expected. 
+
+```{r}
+adf.test(x) 
+```
+
+A theoretic confidence interval can be derived from the function's expected mean and variance. As demonstrated above, we know the expected mean is 3. The expected variance of the function can be defined by $VAR[x_t] = \sigma^2(\beta_0^2 + \beta_1^2)$ where $\sigma^2$ represents the variance of the white noise process and $\beta_0$ and $\beta_1$ represent the coefficients of each moving average term. With this we can derive the expected standard deviation of the function and by extension, a theoretical confidence interval.
+
+$$
+\begin{aligned} 
+VAR[x_t] = \sigma^2 (\beta_0^2 + \beta_1^2) \\
+   = 1( 1^2 + .5^2)  \\
+  = 1.25 \\ 
+  \end{aligned}
+  $$
+  $$
+  \begin{aligned}
+  Standard Deviation [x_t] = \sqrt{1.25} \\ 
+  \end{aligned}
+  $$
+  $$
+  \begin{aligned}
+  95\% Confidence Interval = 3\pm 1.96 *\sqrt{1.25} \\
+  = (.8,5.19)
+\end{aligned}
+$$
+Calculating the theoretical 95% confidence interval of the function near approximates the CI observed from the simulated data. 
+```{r}
+#Calculate the 95% CI of the simulated function
+
+upperbound <- mean(x) + (1.96 *var(x))
+lowerbound <- mean(x) - (1.96 *var(x))
+
+print(c(lowerbound,upperbound))
+```
+
+<font face = "bold" size = 16> Part IV </font>
