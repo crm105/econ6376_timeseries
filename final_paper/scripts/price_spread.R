@@ -63,14 +63,14 @@ ggplot(df, aes(x = date, y = USA ))+
   geom_line(aes(y = df$spread))+
   
   labs(title="US Soybean Prices"  , subtitle="Per 60 KG", y="", x="",
-       caption="*Black series denotes spread relative to Brazilian soybeans. Verticle line signals intervention")+
+       caption="*Black series denotes spread relative to Brazilian soybeans. Verticle line signals intervention\n Source: CBOT")+
   theme(plot.title = element_text( face = "bold", size = "19.5"))+
   theme(plot.subtitle = element_text( face = "italic", size = "12"))+
   theme(axis.text.x =element_text(size=13.5, vjust = -.75)
         , axis.text.y = element_text(size = 13.5 ),
         legend.title=element_text(face = "bold",size=11), 
         legend.text=element_text(size=10, face = "bold"),
-        plot.caption = element_text (size = 12))+
+        plot.caption = element_text (size = 11, vjust = 5))+
    geom_vline(xintercept=as.Date("2018-04-01"), linetype = "dashed")
 
 

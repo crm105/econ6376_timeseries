@@ -12,6 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tseries)
 library(ggplot2)
 library(ggfortify)
+library(forecast)
 ```
 
 <font face = "bold", size =16> Problem II </font><p>
@@ -102,3 +103,66 @@ print(c(lowerbound,upperbound))
 ```
 
 <font face = "bold" size = 16> Part IV </font>
+
+
+The main focus in this problem is to provide a model that can best fit a series that has conditional heteroskedacity. The following will demonstrate techniques for identifying autocorrelation of variance and fitting a General Autoregressive Conditional Heteroskedacity (GARCH) model to ARIMA residuals.  
+
+<font face = "bold"> step 1.) Load and inspect the data </font> <p>
+
+```{R}
+df <- read.csv("ERCOT LZ North January 2014.csv")
+ts <- ts(df$Settlement.Point.Price)
+
+autoplot(ts) + theme_bw()+
+labs(title="ERCOT LZ North Electricity Prices", subtitle="($/MWh)", y="", x="", caption="")+
+  theme(plot.title = element_text( face = "bold", size = "19.5"))+
+  theme(plot.subtitle = element_text( face = "italic", size = "12"))+
+  theme(axis.text.x =element_text(size=13.5, vjust = -.75)
+        , axis.text.y = element_text(size = 13.5 ),
+        legend.title=element_text(face = "bold",size=11), 
+        legend.text=element_text(size=10, face = "bold"),
+        plot.caption = element_text (size = 12))
+
+```
+The above series represents per megawatt hour electricity prices update every 15 seconds. In total, the series includes 31 days or 2976 observations. Augmented Dickey Fuller and Phillips-Perron tests suggest that the series is stationary in the mean. ACF and PACF plots suggest the absence of unit roots. 
+
+```{r}
+adf.test(ts); PP.test(ts)
+
+acf(ts)
+pacf(ts)
+
+
+```
+<font face = "bold"> Step 2: Fit an ARIMA to the series </font> <p>
+
+The auto.arima function featured in the R forecast package determined the best fitting model to be an ARMA (1,2). ACF and PCF plots of the residuals suggest that some autocorrelation in the residuals remain. Furthermore, the ACF of the square of the residuals shows high autocorrelation even after the model fit. This suggests the residuals series should be fit with a GARCH model.  
+```{r}
+
+arima.fit <- auto.arima(ts, allowdrift = TRUE, allowmean = TRUE,
+                        trace = TRUE)
+summary(arima.fit)
+
+acf(arima.fit$residuals) ; pacf(arima.fit$residuals)
+
+acf(arima.fit$residuals^2); pacf(arima.fit$residuals^2)
+
+```
+The below code fits a GARCH model to the residuals. Put simply, the GARCH model will effectively fit an ARMA process to the residuals of the preceding ARIMA model. ACF plots of the GARCH residuals show that the GARCH(0,1) model fits better than GARCH(1,1). However, both models yielded statistically significant coefficients.
+
+```{r}
+
+a.garch1 <- garch(arima.fit$residuals, order=c(0,1), grad="numerical",
+                  trace=FALSE)
+summary(a.garch1)
+acf(a.garch1$residuals[-1])
+
+a.garch2 <- garch(arima.fit$residuals, order=c(1,1), grad="numerical",
+                  trace=FALSE)
+summary(a.garch2)
+acf(a.garch2$residuals[-1])
+
+?garch
+```
+
+Given the presence of significant coefficients with the GARCH model, 

@@ -23,7 +23,8 @@ for(t in 2:1000){
 #A 
 
 x <- c( 0, rnorm(999))
-for (t in 2:1000){
+for (t in 2:1000)
+  {
   x[t] <- 3 - (.5 * x[t-1])
 }
 
@@ -85,6 +86,229 @@ auto.arima(ts, allowdrift = TRUE, trace = TRUE)
 mean(ts[1:1500])
 mean(ts[1500:2976])
 
-#
+#Lets extract the variance. First we need to pre-whiten (demean)
+
+acf(ts)
+var.ts <- ts - mean(ts)
+mean(var.ts)
+
+#now we can create the variance series
+var.ts <- (ts - mean(ts))^2
+
+#Check for stationarity 
+autoplot(var.ts)
+
+#ACF suggest we don't have a unit root, but definitely autocorrelation
+acf(var.ts)
+
+#ADF.tests and PP show stationarity as well
+adf.test(var.ts)
+pp.test(var.ts)
+
+#Fit a model to explain our series
+arima.ts <- auto.arima(ts)
+summary(arima.ts)
+
+acf(arima.ts$residuals^2)
+
+
+a.garch1 <- garch(arima.ts$residuals, order=c(0,1), grad="numerical",
+                  trace=FALSE)
+summary(a.garch1)
+acf(a.garch1$residuals[-1])
+
+
+
+a.garch2 <- garch(ts, order=c(0,1), grad="numerical",
+                 trace=FALSE)
+
+summary(a.garch2)
+confint(a.garch1)
+
+acf(a.garch1$residuals, na.action = na.pass)
+
+
+
+# PART V #
+
+wti <- read.csv("wti_prices.csv")
+names(wti)[2] <- "wti"
+wti$DATE <- as.Date(wti$DATE, format = "%Y-%m-%d")
+
+brent <- read.csv("brent_prices.csv")
+brent$DATE <- as.Date(brent$DATE, format = "%Y-%m-%d")
+
+names(brent)[2] <- "brent"
+
+df <- merge(brent, wti)
+df <- na.omit(df)
+df$spread <- df$wti - df$brent
+df <- df[df$DATE < "2018-01-01",]
+
+ggplot(df, aes(x = DATE, y = wti))+ theme_bw()+
+geom_line(color = "red")+ geom_line(aes(y = brent), color = "blue")
+
+#Let's test each series order of integration 
+#1987-2018 Range
+  #Definitely appear to have a similar acf decay structure
+  #Both suggestive of random walk. Near identical PACF as well
+layout(1:2)
+acf(df$wti); acf(df$brent)
+pacf(df$wti); pacf(df$brent)
+
+#ADF and PP tests further suggest we are I(1) for both series
+adf.test(df$wti); adf.test(df$brent)
+PP.test(df$wti); PP.test(df$brent)
+
+ #First differences return both series to stationary
+plot(diff(df$wti));
+plot(diff(df$brent))
+
+#residuals of differenced series appear stationary. This 
+#suggests co-integration; with the clear exception of the 
+#post intervention period . PO test confirms whole series is 
+#co-integrated
+
+plot(df$spread)
+
+po.test(cbind(df$brent, df$wti))
+
+#2005-2017 Range
+df1 <- df[df$DATE > "2004-12-31",]
+
+layout(1:2)
+acf(df1$wti); acf(df1$brent)
+pacf(df1$wti); pacf(df1$brent)
+
+#ADF and PP tests further suggest we are I(1) for both series
+adf.test(df1$wti); adf.test(df1$brent)
+PP.test(df1$wti); PP.test(df1$brent)
+
+#First differences return both series to stationary
+plot(diff(df1$wti));
+plot(diff(df1$brent))
+
+#residuals of differenced series appear stationary. This 
+#suggests co-integration; with the clear exception of the 
+#post intervention period . PO test confirms #the post 2007
+# series is not co-integrated
+
+plot(df1$spread)
+po.test(cbind(df1$brent, df1$wti))
+
+plot(df1$spread)
+
+#Create the intervention term.
+df1$decline <- 0
+df1[df1$DATE > "2010-11-01" & df1$DATE < "2012-06-01",]$decline = 1
+
+df1$reversal <- 0
+df1[df1$DATE > "2012-05-19",]$reversal = 1
+
+df1$time <- seq(nrow(df1))
+df1$post.int <- df1$time - df1[df1$DATE == "2012-05-01",]$time
+df1[df1$post.int < 1,]$time <- 0
+
+# df1$t.pre.int <- df1$time - df1[df1$DATE == "2010-11-01",]$time
+# df1[df1$post.int < 1,]$time <- 0
+# df1$pre.interaction <- df1$t.pre.int * df1$pre.intervention
+
+
+
+#Plotting the suggested intervention date shows that the divergence
+#began much sooner. We should model this too.
+
+ggplot(df1, aes(x = DATE, y = wti))+ theme_bw() + geom_line()+
+geom_vline(xintercept = as.Date("2012-10-01"), color = "red", linetype="dashed")+
+geom_vline(xintercept = as.Date("2010-11-01"), color = "blue", linetype="dashed")
+
+#Baseline Regression 
+
+lm <- lm(df1$wti~df1$brent)
+summary(lm)
+plot(df1$wti, type = "l"); lines(lm$fitted.values, type = "l", col="red")
+
+
+
+# Baseline with time trend
+lm1 <- lm(df1$wti ~ df1$brent + df1$time)
+summary(lm1)
+
+#Baseline with time trend and reversal dummy 
+lm2 <- lm(df1$wti ~ df1$brent + df1$time + df1$reversal)
+summary(lm2)
+
+#Baseline with time trend reversal dummy and interaction between time 
+#and reversal
+lm3 <- lm(df1$wti ~ df1$brent + df1$time + df1$reversal + df1$post.int)
+summary (lm3)
+
+#lm3 + decline intervention term 
+lm4 <-lm(df1$wti ~ df1$brent + df1$time + df1$reversal +
+           df1$decline+df1$post.int)
+summary (lm4)
+#Run some regressions with our initial intervention date 
+
+reg1 <- lm(df1$wti~df1$brent +df1$decline+df1$reversal)
+summary(reg1)
+plot(df1$wti, type = "l"); lines(reg1$fitted.values, type = "l", col = "red")
+
+
+#First model fit suggests intervention reduced spread by 4.6 dollars
+#t-value (-5.43); Fstat = 1385? 
+
+#Fit with time trend shows time trend is not significant. We can get more
+#creative
+
+reg1.1 <- lm(df1$wti~df1$brent + df1$reversal +
+               df1$time)
+summary(reg1.1)
+plot(reg1.1$residuals, type = "l")
+
+
+reg1.2 <- lm(df1$wti~ df1$brent  +
+               df1$reversal + df1$post.int )
+               
+summary(reg1.2)
+plot(reg1.2$residuals, type = "l")
+
+
+#####################################################################
+#####################################################################
+
+#####################################################################
+#####################################################################
+
+#####################################################################
+#####################################################################
+
+#Fit an ARIMA model to the pre-intervention period. Model jump + slope
+#shift 
+
+pre <- df1[df1$DATE < "2012-05-01",]
+xreg.pre <- pre %>% select(brent)
+
+
+pre.arima1 <- auto.arima(pre$wti, allowdrift = TRUE,
+                     allowmean = TRUE, xreg = xreg.pre, trace = TRUE)
+summary(pre.arima1)
+
+#Fit ARIMAX with intervention * time interaction
+
+xreg <- df1 %>% select( reversal,brent , decline)
+arima1 <- auto.arima(df1$wti, allowmean = TRUE, xreg = xreg)
+  summary(arima1)
+plot(arima1$residuals, type = "l")
+
+plot(df1$wti, type = "l")
+lines(arima2$fitted, col = "red")
+
+
+arima2 <- auto.arima(df1$wti , allowmean = FALSE, allowdrift = TRUE,
+                     xreg = xreg)
+summary(arima2)
+plot(df1$spread, type = "l")
+
+1.7421/(1-.7733)
 
 
