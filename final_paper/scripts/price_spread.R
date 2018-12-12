@@ -78,30 +78,35 @@ ggplot(df, aes(x = date, y = USA ))+
 
 
 df$intervention <- ifelse(df$date > "2018-04-03", 1, 0)
+df$time <- seq(nrow(df))
+df$time <- df$time - df[df$date == "2018-04-03",]$time
+df[df$time < 1,]$time <- 0
+
+xreg <- df[c("intervention", "time")]
+
 
 #Firt Arima to pre-intervention 
 ts <- ts(df$USA)
 ts.pre<- ts(df[df$date < "2018-04-03",]$USA)
-auto.arima(ts.pre)
+pre.arima <- auto.arima(ts.pre, allowdrift = TRUE, allowmean = TRUE,
+                    trace = TRUE)
+summary(pre.arima)
+autoplot(acf(pre.arima$residuals))
 
-#Since its a random walk we need to take the first diff
+pre.arima2 <- Arima(ts.pre, order = c(1,1,1), include.mean = TRUE, include.constant = TRUE)
+summary(pre.arima2) 
+autoplot(acf(pre.arima2$residuals))
+plot(pre.arima2$residuals, type = "l")
 
-diff.ts <- diff(ts)
-auto.arima(diff.ts)
+arima3 <- Arima(ts.pre, order = c(1,1,0), include.mean = TRUE, include.constant = TRUE)
+summary(pre.arima3) 
+autoplot(acf(pre.arima3$residuals))
+
+arima4 <- Arima(ts.pre, order = c(1,1,1), include.mean = TRUE, include.constant = TRUE)
+summary(pre.arima4) 
+autoplot(acf(pre.arima4$residuals))
 
 
-adf.test(df$USA)
-Arima(df$USA, order = c(1,0,0) )
-acf(df$USA)
-
-auto.arima(diff.ts, xreg = diff(df$intervention))
-
-#Fit model to pre-intervention data
-ts <- as.ts(df$USA)
-ts.pre <- as.ts(df[df$date = "2018-05-25",]$spread)
-
-ts.pre.arima <- auto.arima(ts.pre, allowdrift = TRUE, allowmean = TRUE, trace= TRUE)
-summary(ts.pre.arima)
 
 ts.pred <- predict(ts.pre.arima, n.ahead = 173 )
 plot(ts.pred$predict)
@@ -111,13 +116,20 @@ diff <- as.ts(ts.pred$pred -ts[(4337-173):4336])
 plot(diff)
 length(ts[(4337-173):4336])
 
-auto.arima(df$USA, allowdrift = TRUE, allowmean = TRUE, xreg = (df$intervention))
+full.arima <- Arima(df$USA, order = c(0,1,0),include.mean = TRUE,
+                    include.drift = TRUE, xreg = (xreg))
 
-summary(arima)
-?Arima
+summary(full.arima)
+
 
 plot(df$spread, type = "l")
 lines(arima$fitted, type = "l", color = "red")
 
 plot(arima$fitted, type = "l", col = "red")
 plot(arima$residuals)
+
+-0.2408/  0.1721
+
+-0.0104 /  0.0142
+
+

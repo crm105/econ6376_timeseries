@@ -77,9 +77,8 @@ df[df$date > "2018-03-01",]$intervention = 1
 # df[df$date > "2016-12-31" & df$date < "2018-01-01",]$k12 <- 1
 
 
-
+tot <- df[df$country == "GRAND TOTAL",]
 chn <- df[df$country == "CHINA, PEOPLES REPUBLIC OF",]
-plot(chn$exports, type = "l")
 eu <- df[df$country == "EUROPEAN UNION - 27",]
 
 chn$time <- seq(nrow(chn))
@@ -89,12 +88,19 @@ chn$time <- chn$time - chn[chn$date == "2018-04-01",]$time
 xreg <- data.frame(chn$intervention, (chn$intervention *chn$time) )
 
 
+#ADF and PP tests for each series 
+
+adf.test(chn$exports); PP.test(chn$exports)
+adf.test(tot$exports); PP.test(tot$exports)
+adf.test(eu$exports); PP.test(eu$exports)
+
 ###########################################################################
 
 #Lets fit a best arima to the total exports to china pre-intervention period
 
 
 ts.chn <- ts(chn$exports,   frequency = 12 )
+
 
 ts.chn.pre <- ts(chn[chn$date < "2018-04-01",]$exports,   frequency = 12 )
 arima.chn.pre <- auto.arima (ts.chn.pre, trace = TRUE, seasonal = TRUE, 
@@ -106,7 +112,6 @@ arima.chn.pre1 <- Arima (ts.chn, order = c(1,0,0), seasonal = c(1,1,2),
                          include.constant = TRUE  , include.mean = TRUE, include.drift = TRUE)
 summary(arima.chn.pre1)
 autoplot(acf(arima.chn.pre1$residuals))
-
 
 
 
@@ -152,10 +157,10 @@ summary(arima.chn.pre)
 arima.chn <- Arima(ts.chn, include.mean = TRUE,include.constant = TRUE, order = c(1,0,0), seasonal = c(0,1,2), 
  xreg = xreg)
 
-#arima.chn <- auto.arima(ts.chn, allowdrift = TRUE, allowmean = TRUE, xreg =chn$intervention)
-
-
 summary(arima.chn)
+926483.7 / 589290.2
+-1030895 / 136685
+
 
 autoplot(arima.chn$residuals)+ theme_bw()+
 labs(title="China: Intervention Analysis Residuals"  , subtitle="SARIMA (1,0,0)(0,1,2)", y="", x="",
@@ -186,7 +191,7 @@ ts.pre.eu <- ts(eu[eu$date < "2018-04-01",]$exports, frequency = 12)
 arima.eu.pre <- Arima (ts.pre.eu, include.mean = TRUE, include.drift = TRUE,
                order = c(2,0,3), seasonal = c(1,1,2))
 summary(arima.eu.pre)
-autoplot(acf(test$residuals))
+autoplot(acf(arima.eu.pre$residuals))
 pred.eu <- forecast(arima.eu.pre, h = 8)
 diff.pred.eu <- pred.eu$mean - ts.eu[length(ts.eu-7):length(ts.eu)]
 
@@ -195,9 +200,14 @@ diff.pred.eu <- pred.eu$mean - ts.eu[length(ts.eu-7):length(ts.eu)]
 
 plot(diff.pred.eu)
   
-arima.eu <- auto.arima (ts.eu, seasonal = TRUE, xreg = xreg,
-                  allowdrift  = TRUE, allowmean = TRUE)
+arima.eu <- Arima (ts.eu, order = c(2,0,3), seasonal = c(1,1,2), xreg = xreg,
+                  include.mean = TRUE, include.drift = TRUE)
 summary(arima.eu)
+95133/176094
+126334 / 40529
+
+
+arima.eu$coef
 autoplot(arima.eu$residuals) + theme_bw()+
   labs(title="European Union: Intervention Analysis Residuals"  , subtitle="SARIMA (3,0,1)(0,1,2)[12]", y="", x="",
        caption=" Y = Forecasted Values - Realized Values")+
@@ -224,10 +234,12 @@ ts.tot <- ts(tot$exports,   frequency = 12)
 ts.tot.pre <- ts(tot.pre$exports, frequency = 12)
 
 arima.tot.pre <- auto.arima(ts.tot.pre, trace = TRUE, seasonal = TRUE, allowdrift = TRUE, allowmean = TRUE)
-arima.tot.pre1 <- Arima(ts.tot.pre, order = c(2,0,2), seasonal = c(1,1,2),
+arima.tot.pre1 <- Arima(ts.tot.pre, order = c(1,0,0), seasonal = c(0,1,2),
    include.mean = TRUE, include.drift = TRUE)
+
+summary(arima.tot.pre)
 summary(arima.tot.pre1)
-autoplot(acf(arima.tot.pre1$residuals))
+autoplot(acf(arima.tot.pre$residuals))
 plot(ts.tot.pre)
 lines(arima.tot.pre$fitted, type = "l", col = "red")
 tot.post.pred <- forecast(arima.tot.pre, h = 8)
@@ -242,25 +254,15 @@ pred.diff.tot <- tot.post.pred$mean - ts.tot[length(ts.tot - 7):length(ts.tot)]
 
 plot(pred.diff.tot)
 
-arima.tot <- auto.arima (ts.tot, seasonal = TRUE, allowdrift = TRUE,
-  allowmean =  TRUE,  xreg = xreg)
+arima.tot <- Arima (ts.tot, order = c(2,0,3), seasonal = c(0,1,2),include.mean = TRUE,
+  include.drift =  TRUE,  xreg = xreg)
 
 
 summary(arima.tot)
 plot(ts.tot)
 lines(arima.tot$fitted, col = "red", type = "l")
 
-autoplot(arima.tot$residuals) + theme_bw()+
-  labs(title="Total Exports: Intervention Analysis Residuals"  , subtitle="SARIMA (3,0,1)(0,1,2)[12]", y="", x="",
-       caption=" Y = Forecasted Values - Realized Values")+
-  theme(plot.title = element_text( face = "bold", size = "19.5"))+
-  theme(plot.subtitle = element_text( face = "italic", size = "12"))+
-  theme(axis.text.x =element_text(size=13.5, vjust = -.75)
-        , axis.text.y = element_text(size = 13.5 ),
-        legend.title=element_text(face = "bold",size=11), 
-        legend.text=element_text(size=10, face = "bold"),
-        plot.caption = element_text (size = 12))
-acf(arima.tot$residuals)
+
 
 #### Fit intervention model
 
@@ -286,7 +288,9 @@ plot(decompose(ts.qtr), type = "multiplicative")
 plot(decompose(ts.qtr, type = "multiplicative"))
 summary(qtr)
 
+#ACF PLots for each series specification
 
+ (acf(arima.chn$residuals)) ; (acf(arima.eu$residuals)) ; (acf(arima.tot$residuals))
 
 #Some Plots 
 
@@ -326,11 +330,46 @@ ggplot(tot, aes(x = date, y = exports))+
         plot.caption = element_text (size = 12))+
   labs(color='Export Destination')
 
-sum(df[df$date > "2016-12-01"& df$date < "2018-01-01",]$exports)/12
+
+autoplot(arima.tot$residuals) + theme_bw()+
+  labs(title="Total Exports Residual Series"  , subtitle="SARIMA (2,0,3)(0,1,2)[12]", y="", x="",
+       caption="")+
+  theme(plot.title = element_text( face = "bold", size = "19.5"))+
+  theme(plot.subtitle = element_text( face = "italic", size = "12"))+
+  theme(axis.text.x =element_text(size=13.5, vjust = -.75)
+        , axis.text.y = element_text(size = 13.5 ),
+        legend.title=element_text(face = "bold",size=11), 
+        legend.text=element_text(size=10, face = "bold"),
+        plot.caption = element_text (size = 12))
+acf(arima.tot$residuals)
 
 
-sum(df[df$date < "2018-01-01" & df$date > "2016-12-01" & df$country == "CHINA, PEOPLES REPUBLIC OF",]$exports)/
 
-sum(df[df$date < "2018-01-01" & df$date > "2016-12-01" & df$country == "GRAND",]$exports)
+autoplot(arima.chn$residuals) + theme_bw()+
+  labs(title="Exports to China Residual Series"  , subtitle="SARIMA (1,0,0)(0,1,2)[12]", y="", x="",
+       caption="")+
+  theme(plot.title = element_text( face = "bold", size = "19.5"))+
+  theme(plot.subtitle = element_text( face = "italic", size = "12"))+
+  theme(axis.text.x =element_text(size=13.5, vjust = -.75)
+        , axis.text.y = element_text(size = 13.5 ),
+        legend.title=element_text(face = "bold",size=11), 
+        legend.text=element_text(size=10, face = "bold"),
+        plot.caption = element_text (size = 12))
+
+
+autoplot(arima.eu$residuals) + theme_bw()+
+  labs(title="Exports to EU: Intervention Analysis Residuals"  , subtitle="SARIMA (2,0,3)(0,1,2)[12]", y="", x="",
+       caption=" Y = Forecasted Values - Realized Values")+
+  theme(plot.title = element_text( face = "bold", size = "19.5"))+
+  theme(plot.subtitle = element_text( face = "italic", size = "12"))+
+  theme(axis.text.x =element_text(size=13.5, vjust = -.75)
+        , axis.text.y = element_text(size = 13.5 ),
+        legend.title=element_text(face = "bold",size=11), 
+        legend.text=element_text(size=10, face = "bold"),
+       plot.caption = element_text (size = 12))
+
+
+
+
 
 
