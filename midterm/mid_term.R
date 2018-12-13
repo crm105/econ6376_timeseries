@@ -205,10 +205,9 @@ df1[df1$DATE > "2010-11-01" & df1$DATE < "2012-06-01",]$decline = 1
 df1$reversal <- 0
 df1[df1$DATE > "2012-05-19",]$reversal = 1
 
-df1$time <- seq(nrow(df1))
-df1$post.int <- df1$time - df1[df1$DATE == "2012-05-01",]$time
-df1[df1$post.int < 1,]$time <- 0
-
+df1$time <- df1$id <- seq(nrow(df1))
+df1$time <- df1$time - df1[df1$DATE == "2012-05-01",]$time
+df1$post.int <- df1$time * df1$reversal
 # df1$t.pre.int <- df1$time - df1[df1$DATE == "2010-11-01",]$time
 # df1[df1$post.int < 1,]$time <- 0
 # df1$pre.interaction <- df1$t.pre.int * df1$pre.intervention
@@ -235,12 +234,12 @@ lm1 <- lm(df1$wti ~ df1$brent + df1$time)
 summary(lm1)
 
 #Baseline with time trend and reversal dummy 
-lm2 <- lm(df1$wti ~ df1$brent + df1$time + df1$reversal)
+lm2 <- lm(df1$wti ~ df1$brent + df1$id + df1$reversal)
 summary(lm2)
 
 #Baseline with time trend reversal dummy and interaction between time 
 #and reversal
-lm3 <- lm(df1$wti ~ df1$brent + df1$time + df1$reversal + df1$post.int)
+lm3 <- lm(df1$wti ~ df1$brent + df1$id + df1$reversal + df1$post.int)
 summary (lm3)
 
 #lm3 + decline intervention term 
@@ -249,10 +248,10 @@ lm4 <-lm(df1$wti ~ df1$brent + df1$time + df1$reversal +
 summary (lm4)
 #Run some regressions with our initial intervention date 
 
-reg1 <- lm(df1$wti~df1$brent +df1$decline+df1$reversal)
-summary(reg1)
+lm5 <- lm(df1$wti~df1$brent +df1$decline+df1$reversal +
+            df1$post.int )
+summary(lm5)
 plot(df1$wti, type = "l"); lines(reg1$fitted.values, type = "l", col = "red")
-
 
 #First model fit suggests intervention reduced spread by 4.6 dollars
 #t-value (-5.43); Fstat = 1385? 
