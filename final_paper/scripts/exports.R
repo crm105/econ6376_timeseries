@@ -4,7 +4,6 @@
 
 
 #Import libraries needed for analysis. Some are vestiges of previous analysis not featured in paper 
-library("readxl")
 library("zoo")
 library(dplyr)
 library(tidyr)
@@ -12,9 +11,7 @@ library(lubridate)
 library(ggplot2)
 library(forecast)
 library(xts)
-library(TSA)
 library(tseries)
-#library(data.table) 
 
 #Import US soybean export data 
 df <- read.csv("data/exports.csv", skip =6)
@@ -75,9 +72,7 @@ df <- group_by(df, date) %>%
 df$intervention <- 0
 df[df$date > "2018-03-01",]$intervention = 1
 
-# df$k12 <- 0
-# df[df$date > "2016-12-31" & df$date < "2018-01-01",]$k12 <- 1
-
+#Isolate each series of interests as its own frame
 
 tot <- df[df$country == "GRAND TOTAL",]
 chn <- df[df$country == "CHINA, PEOPLES REPUBLIC OF",]
@@ -203,8 +198,8 @@ lines(arima.eu$fitted, type = "l", col = "red")
 
 tot <- df[df$country == "GRAND TOTAL",]
 tot.pre <- tot[tot$date < "2018-04-01",]
-ts.post <- tot[tot$date > "2018-03-01",]
 ts.tot.pre <- ts(tot.pre$exports, frequency = 12)
+ts.tot <- ts(tot$exports, frequency = 12)
 
 arima.tot.pre <- auto.arima(ts.tot.pre, trace = TRUE, seasonal = TRUE, allowdrift = TRUE, allowmean = TRUE)
 arima.tot.pre1 <- Arima(ts.tot.pre, order = c(1,0,0), seasonal = c(0,1,2),
@@ -219,11 +214,11 @@ tot.post.pred <- forecast(arima.tot.pre, h = 8)
 
 #Prediction from pre intervention, suggests that the intervention should start
 # in September. 
-post <- ts.tot[232:239]
+post <- tot$exports[232:239]
 plot(x = seq(1:8), tot.post.pred$mean , type = "l", col = "red")
 lines(post, type = "l")
 
-pred.diff.tot <- tot.post.pred$mean - ts.tot[length(ts.tot - 7):length(ts.tot)]
+pred.diff.tot <- tot.post.pred$mean - tot$exports[length(tot$exports - 7):length(tot$exports)]
 
 plot(pred.diff.tot)
 
@@ -231,36 +226,17 @@ arima.tot <- Arima (ts.tot, order = c(2,0,3), seasonal = c(0,1,2),include.mean =
   include.drift =  TRUE,  xreg = xreg)
 
 
-summary(arima.tot)
-plot(ts.tot)
-lines(arima.tot$fitted, col = "red", type = "l")
 
 #### Fit intervention model
 
-tot.intervention <- auto.arima(ts.tot, seasonal = TRUE, allowdrift = TRUE,
-                               allowmean = TRUE, xreg = xreg)
+arima.tot <- Arima (ts.tot, order = c(2,0,3), seasonal = c(0,1,2),include.mean = TRUE,
+                    include.drift =  TRUE,  xreg = xreg)
 
-summary(tot.intervention)
-plot(ts.tot)
-lines(tot.intervention$fitted, type = "l", col = "blue")
+summary(arima.tot)
+plot(arima.tot$residuals)
 
-plot(tot.intervention$residuals)
-#Some Plots 
 
-ggplot(chn[chn$date < "2018-04-01",], aes(x = date, y = exports))+ 
-  theme_classic()+ geom_line()+
-  geom_line(aes(y = arima.chn.pre$fitted), col = "red")+
-  
-  labs(title="China: Pre-intervention  Exports Realized vs. Fitted"  , subtitle="SARIMA (1,0,0)(0,1,2)", y="", x="",
-       caption="Red = Fitted Values")+
-  theme(plot.title = element_text( face = "bold", size = "19.5"))+
-  theme(plot.subtitle = element_text( face = "italic", size = "12"))+
-  theme(axis.text.x =element_text(size=13.5, vjust = -.75)
-        , axis.text.y = element_text(size = 13.5 ),
-        legend.title=element_text(face = "bold",size=11), 
-        legend.text=element_text(size=10, face = "bold"),
-        plot.caption = element_text (size = 12))
-
+#Monthly soybean exports to EU and CHINA plot 
 
 df1 <- df[!df$country == "GRAND TOTAL",]
 p <- ggplot(df1, aes (x = date, y = exports, color = country))+
@@ -280,7 +256,9 @@ labs(title="Monthly Soybean Exports to China and EU", subtitle="Metric Tons", y=
   labs(color='')
 p
 
-as.Date("2002-01-01")
+
+#Total Monthly Soybean Exports Plot 
+
 ggplot(tot, aes(x = date, y = exports))+
   geom_line()+
   theme_bw()+
@@ -296,6 +274,7 @@ ggplot(tot, aes(x = date, y = exports))+
         plot.caption = element_text (size = 12))+
   labs(color='Export Destination')
 
+#Total Exports Series Model residuals
 
 autoplot(arima.tot$residuals) + theme_bw()+
   labs(title="Total Exports Residual Series"  , subtitle="SARIMA (2,0,3)(0,1,2)[12]", y="", x="",
@@ -310,6 +289,7 @@ autoplot(arima.tot$residuals) + theme_bw()+
 acf(arima.tot$residuals)
 
 
+#Exports to China series Residuals 
 
 autoplot(arima.chn$residuals) + theme_bw()+
   labs(title="Exports to China Residual Series"  , subtitle="SARIMA (1,0,0)(0,1,2)[12]", y="", x="",
@@ -322,7 +302,7 @@ autoplot(arima.chn$residuals) + theme_bw()+
         legend.text=element_text(size=10, face = "bold"),
         plot.caption = element_text (size = 12))
 
-
+#Exports to EU model residuals 
 autoplot(arima.eu$residuals) + theme_bw()+
   labs(title="Exports to EU: Intervention Analysis Residuals"  , subtitle="SARIMA (2,0,3)(0,1,2)[12]", y="", x="",
        caption=" Y = Forecasted Values - Realized Values")+

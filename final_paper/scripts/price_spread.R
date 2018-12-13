@@ -1,3 +1,8 @@
+# TITLE: Price Series Analysis 
+#Author: Christopher Montgomery
+#Last Revised: 12/12/2018
+
+
 #Here are some libraries we will be needing
 
 library("Quandl")
@@ -24,7 +29,6 @@ bra$origin <- "BRA"
 
 #bushel of soybeans = 60 pounds. 1 KG = 2.20462 pounds Convert brazil prices to bushels
 bra$price <- bra$price / 2.20462
-#bra$price <- log(bra$price)
 
 #US soybean prices per bushel 
 us <- Quandl("TFGRAIN/SOYBEANS")
@@ -46,17 +50,11 @@ df <- na.omit(df)
 
 plot(df$spread, type = "l")
 test<- df$USA
-#Some Plots 
 
-graphics.off()
-par("mar")
-par(mar=c(1,1,1,1))
-# layout(1:2)
-plot(bra$date, bra$price,  type = "line")
-plot(us$date, us$price,  type = "line")
 
 
 #This plot shows the two price series and spread. It's pretty clear that we see significant co-movement
+
 ggplot(df, aes(x = date, y = USA ))+
   theme_bw()+ geom_line(col = "red")+
   #geom_line(aes(y = df$BRA), col = "blue")+ 
@@ -84,8 +82,8 @@ df[df$time < 1,]$time <- 0
 
 xreg <- df[c("intervention", "time")]
 
-
 #Firt Arima to pre-intervention 
+
 ts <- ts(df$USA)
 ts.pre<- ts(df[df$date < "2018-04-03",]$USA)
 pre.arima <- auto.arima(ts.pre, allowdrift = TRUE, allowmean = TRUE,
@@ -108,13 +106,7 @@ autoplot(acf(pre.arima4$residuals))
 
 
 
-ts.pred <- predict(ts.pre.arima, n.ahead = 173 )
-plot(ts.pred$predict)
-plot(ts[(4337-173):4336], type = "l")
-
-diff <- as.ts(ts.pred$pred -ts[(4337-173):4336])
-plot(diff)
-length(ts[(4337-173):4336])
+#Apply arima(0,1,0) to full series including exogenous regressors
 
 full.arima <- Arima(df$USA, order = c(0,1,0),include.mean = TRUE,
                     include.drift = TRUE, xreg = (xreg))
@@ -128,8 +120,5 @@ lines(arima$fitted, type = "l", color = "red")
 plot(arima$fitted, type = "l", col = "red")
 plot(arima$residuals)
 
--0.2408/  0.1721
-
--0.0104 /  0.0142
 
 
