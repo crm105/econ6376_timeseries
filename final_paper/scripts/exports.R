@@ -1,6 +1,9 @@
-#getwd()
-#setwd("Documents/active_projects/econ6376_timeseries/final_paper")
+# TITLE: Export Series Analysis 
+#Author: Christopher Montgomery
+#Last Revised: 12/12/2018
 
+
+#Import libraries needed for analysis. Some are vestiges of previous analysis not featured in paper 
 library("readxl")
 library("zoo")
 library(dplyr)
@@ -10,8 +13,10 @@ library(ggplot2)
 library(forecast)
 library(xts)
 library(TSA)
+library(tseries)
 #library(data.table) 
 
+#Import US soybean export data 
 df <- read.csv("data/exports.csv", skip =6)
 
 
@@ -22,8 +27,9 @@ df <- df[,keep]
 colnames (df) <- c("date", "country", "exports","n.sales.cmy", "n.sales.nmy")
 df$date <- as.Date(df$date, format = "%m/%d/%Y")
 df <- df[df$date > "1998-12-31",]
-integers <- c("exports", "n.sales.cmy", "n.sales.cmy", "n.sales.nmy")
 
+#Convert export and sales data to numeric. Create a new sales column signifying net sales during observation period 
+integers <- c("exports", "n.sales.cmy", "n.sales.cmy", "n.sales.nmy")
 for (i in integers){
   df[,i] <- as.numeric (gsub(",", "", df[,i]))
 
@@ -32,21 +38,19 @@ df$sales <- df$n.sales.cmy + df$n.sales.nmy
 
 
 
-#Convert to monthly data and take the logs
+#Convert to monthly data featuring dplyr
  df <- df %>%
 dplyr :: select( date, country, exports, sales)  %>%
 dplyr :: group_by( date = floor_date(date, "months"),country) %>%
 dplyr ::summarise(exports = sum(exports), sales = sum(sales))
  
- # df[df$exports < 1,]$exports <- 1
- # df$exports <- log(df$exports)
 
  #Drop non-country rows that are not relevant 
  
  df<- df[!df$country %in% c("KNOWN", "UNKNOWN"),]
 
 
-#Create new frames with total and three major trade partners. Might Not Keep This. Am i missing a country? 
+#Create new frames with total and three major trade partners.  
 
 EU <- c("AUSTRIA", "BULGARIA", "BELGIUM-LUXEMBOURG","DENMARK", 
         "CYPRUS", "CZECHIA", "ESTONIA","FINLAND", "FRANCE","GERMANY", "GREECE",
@@ -58,13 +62,11 @@ EU <- c("AUSTRIA", "BULGARIA", "BELGIUM-LUXEMBOURG","DENMARK",
 sum (df[df$country == "EUROPEAN UNION - 27",]$exports) -  sum (df[df$country %in% EU,]$exports)
 sum(df[df$country == "GRAND TOTAL",]$exports) - sum(df[!df$country == "GRAND TOTAL", ]$exports) 
 
-#Keep only values we want. Drop November until data through end of the month is 
-#updated 
+#Keep only columns we want- Total, EU, and CHN.
 
 
 df <- group_by(df, date) %>% 
     filter(country %in% c("GRAND TOTAL", "EUROPEAN UNION - 27", "CHINA, PEOPLES REPUBLIC OF" ))
-#df <- df[df$date < "2018-11-01",]
 
 
 
@@ -81,59 +83,43 @@ tot <- df[df$country == "GRAND TOTAL",]
 chn <- df[df$country == "CHINA, PEOPLES REPUBLIC OF",]
 eu <- df[df$country == "EUROPEAN UNION - 27",]
 
+#This creates a time * post-intervention dummy. 
 chn$time <- seq(nrow(chn))
 chn$time <- chn$time - chn[chn$date == "2018-04-01",]$time
 
-
+#XREG houses exogenous regressors used in analysis 
 xreg <- data.frame(chn$intervention, (chn$intervention *chn$time) )
 
 
-#ADF and PP tests for each series 
+#ADF and PP tests for each series. ACF tests for inspecting seasonality 
 
 adf.test(chn$exports); PP.test(chn$exports)
 adf.test(tot$exports); PP.test(tot$exports)
 adf.test(eu$exports); PP.test(eu$exports)
 
+acf(chn$exports); acf(eu$exports); acf(tot$exports)
+
 ###########################################################################
 
 #Lets fit a best arima to the total exports to china pre-intervention period
 
-
 ts.chn <- ts(chn$exports,   frequency = 12 )
-
-
 ts.chn.pre <- ts(chn[chn$date < "2018-04-01",]$exports,   frequency = 12 )
 arima.chn.pre <- auto.arima (ts.chn.pre, trace = TRUE, seasonal = TRUE, 
                          allowdrift = TRUE,  allowmean = TRUE)
 summary(arima.chn.pre)
 autoplot(acf(arima.chn.pre$residuals))
 
+#This is an alternative tested fit that proved less fitting
 arima.chn.pre1 <- Arima (ts.chn, order = c(1,0,0), seasonal = c(1,1,2),
                          include.constant = TRUE  , include.mean = TRUE, include.drift = TRUE)
 summary(arima.chn.pre1)
 autoplot(acf(arima.chn.pre1$residuals))
 
 
-
-ggplot(chn[chn$date < "2018-04-01",], aes(x = date, y = exports))+ 
-  theme_classic()+ geom_line()+
-  geom_line(aes(y = arima.chn.pre$fitted), col = "red")+
-  
-  labs(title="China: Pre-intervention  Exports Realized vs. Fitted"  , subtitle="SARIMA (1,0,0)(0,1,2)", y="", x="",
-       caption="Red = Fitted Values")+
-  theme(plot.title = element_text( face = "bold", size = "19.5"))+
-  theme(plot.subtitle = element_text( face = "italic", size = "12"))+
-  theme(axis.text.x =element_text(size=13.5, vjust = -.75)
-        , axis.text.y = element_text(size = 13.5 ),
-        legend.title=element_text(face = "bold",size=11), 
-        legend.text=element_text(size=10, face = "bold"),
-        plot.caption = element_text (size = 12))
-
-
 #Step 2 Fit forecast from fitted values to realized post-intervention values
 pred.chn.pre <- forecast :: forecast(arima.chn.pre, h = 8)
 
-plot(pred.chn.pre)
 diff.chn <- pred.chn.pre$mean - ts.chn[88:95]
 
 autoplot(diff.chn) + theme_bw()+ 
@@ -147,20 +133,12 @@ caption=" Y = Forecasted Values - Realized Values")+
         legend.text=element_text(size=10, face = "bold"),
         plot.caption = element_text (size = 12))
 
-
-
-summary(arima.chn.pre)
-
-
-#Step 3- Fit model to entire China Series
+#Step 3- Fit best fitting pre-intervention model to entire China Series
 
 arima.chn <- Arima(ts.chn, include.mean = TRUE,include.constant = TRUE, order = c(1,0,0), seasonal = c(0,1,2), 
  xreg = xreg)
 
 summary(arima.chn)
-926483.7 / 589290.2
--1030895 / 136685
-
 
 autoplot(arima.chn$residuals)+ theme_bw()+
 labs(title="China: Intervention Analysis Residuals"  , subtitle="SARIMA (1,0,0)(0,1,2)", y="", x="",
@@ -176,23 +154,24 @@ labs(title="China: Intervention Analysis Residuals"  , subtitle="SARIMA (1,0,0)(
 
 acf(arima.chn$residuals)
 
-
-
-
 ######################################################
 
 
 #Model fit for European Union pre-intervention 
 ts.eu <- ts(eu$exports, frequency = 12)
 ts.pre.eu <- ts(eu[eu$date < "2018-04-01",]$exports, frequency = 12)
-#arima.eu.pre <- auto.arima (ts.pre.eu, trace = TRUE, seasonal = TRUE, allowdrift = TRUE,
-#                            allowmean = TRUE)
 
-arima.eu.pre <- Arima (ts.pre.eu, include.mean = TRUE, include.drift = TRUE,
+arima.eu.pre <- auto.arima (ts.pre.eu, trace = TRUE, seasonal = TRUE, allowdrift = TRUE,
+                           allowmean = TRUE)
+
+arima.eu.pre1 <- Arima (ts.pre.eu, include.mean = TRUE, include.drift = TRUE,
                order = c(2,0,3), seasonal = c(1,1,2))
+
 summary(arima.eu.pre)
-autoplot(acf(arima.eu.pre$residuals))
-pred.eu <- forecast(arima.eu.pre, h = 8)
+summary(arima.eu.pre1)
+
+autoplot(acf(arima.eu.pre1$residuals))
+pred.eu <- forecast(arima.eu.pre1, h = 8)
 diff.pred.eu <- pred.eu$mean - ts.eu[length(ts.eu-7):length(ts.eu)]
 
 #EU plot suggests a gradually increasing intervention effect. This makes sense
@@ -203,11 +182,7 @@ plot(diff.pred.eu)
 arima.eu <- Arima (ts.eu, order = c(2,0,3), seasonal = c(1,1,2), xreg = xreg,
                   include.mean = TRUE, include.drift = TRUE)
 summary(arima.eu)
-95133/176094
-126334 / 40529
 
-
-arima.eu$coef
 autoplot(arima.eu$residuals) + theme_bw()+
   labs(title="European Union: Intervention Analysis Residuals"  , subtitle="SARIMA (3,0,1)(0,1,2)[12]", y="", x="",
        caption=" Y = Forecasted Values - Realized Values")+
@@ -229,8 +204,6 @@ lines(arima.eu$fitted, type = "l", col = "red")
 tot <- df[df$country == "GRAND TOTAL",]
 tot.pre <- tot[tot$date < "2018-04-01",]
 ts.post <- tot[tot$date > "2018-03-01",]
-ts.tot <- ts(tot$exports,   frequency = 12)
-
 ts.tot.pre <- ts(tot.pre$exports, frequency = 12)
 
 arima.tot.pre <- auto.arima(ts.tot.pre, trace = TRUE, seasonal = TRUE, allowdrift = TRUE, allowmean = TRUE)
@@ -262,8 +235,6 @@ summary(arima.tot)
 plot(ts.tot)
 lines(arima.tot$fitted, col = "red", type = "l")
 
-
-
 #### Fit intervention model
 
 tot.intervention <- auto.arima(ts.tot, seasonal = TRUE, allowdrift = TRUE,
@@ -274,29 +245,24 @@ plot(ts.tot)
 lines(tot.intervention$fitted, type = "l", col = "blue")
 
 plot(tot.intervention$residuals)
-
-
-#Some quarterly work 
-boxplot(ts.tot~cycle (ts.tot))
-ts.qtr <- aggregate(ts.chn, 4)
-
-#ts.tot.qtr <- ts(tot$exports, frequency = 3)
-boxplot(ts.qtr~cycle (ts.qtr))
-
-plot(decompose(ts.qtr), type = "multiplicative")
-
-plot(decompose(ts.qtr, type = "multiplicative"))
-summary(qtr)
-
-#ACF PLots for each series specification
-
- (acf(arima.chn$residuals)) ; (acf(arima.eu$residuals)) ; (acf(arima.tot$residuals))
-
 #Some Plots 
 
-#Some Plots 
+ggplot(chn[chn$date < "2018-04-01",], aes(x = date, y = exports))+ 
+  theme_classic()+ geom_line()+
+  geom_line(aes(y = arima.chn.pre$fitted), col = "red")+
+  
+  labs(title="China: Pre-intervention  Exports Realized vs. Fitted"  , subtitle="SARIMA (1,0,0)(0,1,2)", y="", x="",
+       caption="Red = Fitted Values")+
+  theme(plot.title = element_text( face = "bold", size = "19.5"))+
+  theme(plot.subtitle = element_text( face = "italic", size = "12"))+
+  theme(axis.text.x =element_text(size=13.5, vjust = -.75)
+        , axis.text.y = element_text(size = 13.5 ),
+        legend.title=element_text(face = "bold",size=11), 
+        legend.text=element_text(size=10, face = "bold"),
+        plot.caption = element_text (size = 12))
+
+
 df1 <- df[!df$country == "GRAND TOTAL",]
-
 p <- ggplot(df1, aes (x = date, y = exports, color = country))+
   geom_line(stat = "identity")+
   theme_bw() + 
@@ -367,9 +333,6 @@ autoplot(arima.eu$residuals) + theme_bw()+
         legend.title=element_text(face = "bold",size=11), 
         legend.text=element_text(size=10, face = "bold"),
        plot.caption = element_text (size = 12))
-
-
-
 
 
 
