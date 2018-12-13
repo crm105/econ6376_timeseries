@@ -14,6 +14,42 @@ library(ggplot2)
 library(ggfortify)
 library(forecast)
 ```
+<font face = "bold", size = 16> Problem I </font> <p>
+
+The below equation models a random walk process.
+
+$$y_t = y_{t-1} + w_t $$ 
+Assuming a mean of zero, variance $\sigma^2$, and zero autocorrelation for the white noise term, the uncondutional mean of the series can be shown as follows: 
+
+
+$$E[y_t] = E[y_{t-1}] + E[w_t] $$
+$$E[y_{t-1}] = E[y_{t-2}] + E[w_{t-1}] $$  
+$$E[y_{t}] = E[y_{t-2}] + E[w_t] + E[w_{t-1}] $$
+$$E[y_{t}] = E[w_t] + E[w_{t-1}] + E[w_{t-2}].... + E[w_0]$$
+$$ E[y_t] = 0 $$ 
+
+The value of a random walk at any time t is simply the summation of the expectation of the random noise term at time t and all previous noise terms. Based on the above assumption of a non-autocorrelated mean zero white noise series, we know the expectation of each noise term is zero. Thus the unconditional mean of a random walk at time t, is likewise zero. The unconditional variance of the random walk process is simply t$\sigma^2$. This represents the summation of all the variances of the white noise terms in the sequence. 
+
+```{r}
+set.seed (3)
+
+y <-w  <- rnorm(100)
+
+for (t in 2:100){
+  y[t] <- y[t-1] + w[t]
+}
+
+plot(y, type = "l")  
+
+var (y[1:5])
+
+
+```
+
+The conditional mean and variance of the simulated series is -1.46 and .3 respectively at t = 5. <p>
+
+If I were to believe an asset's price followed a random walk I would not attempt to forecast its future value. In a random walk model the only thing that affects the present value of a series is an unknown present shock. As such, it's impossible to use previous information to predict future values. This concept essentially underpins the Efficient Market Hypothesis.  
+
 
 <font face = "bold", size =16> Problem II </font><p>
 <font size = 8> Consider the following equation: </font>
