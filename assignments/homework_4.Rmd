@@ -1,0 +1,123 @@
+---
+title: "Homework 4"
+author: "Chris Montgomery"
+date: "12/14/2018"
+output: html_document
+---
+
+```{r}
+
+
+library("tseries")
+library("forecast")
+library("ggplot2")
+library("ggfortify")
+
+df <- read.csv("assignment_4.csv")
+ts <- ts(df[,1], start = 0)
+
+
+autoplot(ts)
+```
+
+The above series is a mystery series with an unknown data generating process. By visual inspection, it appears to be stationary around a mean of 50 or so. The series does not appear to have points of significant structural change, and attempting to model any interventions without an underlying theory could be dangerous. <p>
+
+The ACF plot of the series shows more steady decay than a typical non-stationary random walk model. PACF shoes only one significant lag at lag 1. This suggests we are looking at an AR(1) process. ADF and PP tests further confirm stationarity. 
+
+```{r}
+acf(ts); pacf(ts); adf.test(ts); pp.test(ts) 
+
+
+```
+The auto.arima function in R suggests that the best fitting model for the above series is an ARIMA (4,1,0). While it may have the lowest AIC value, I have a preference for an ARMA (1,1) model. It's more pasimonious, exhibits no unexpected residual autocorrelation, and has an AIC that's only slightly higher than the ARIMA (4,1,0). At the same time, interpretting the coefficient and calculating the long run mean of a the ARMA(1,1) is significantly easier than the ARIMA (4,1,0). In addition, the ARIMA (4,1,0) contains a statistically insignificant AR(4) coefficient, which further suggests a lack of parsimony. On one final note, it's possible that the auto.arima function is fitting based on some of the initialization observations. Removing the first 100 observations results in the ARMA(1,1) model yielding a better fit than the ARIMA (4,1,0).
+
+```{r}
+ts <- ts[100:1000]
+arma1 <- arma(ts, order = c(1,0,0) )
+arma11 <- Arima(ts, order = c(1,0,1), include.constant = TRUE)
+arima111 <- Arima(ts, order = c(1,1,1), include.mean = TRUE, include.constant = TRUE)
+arima011 <- Arima (ts, order = c(0,1,1), include.mean = TRUE, include.constant = TRUE)
+aut <- auto.arima(ts, allowdrift = TRUE, allowmean = TRUE, trace = TRUE, stepwise = FALSE)
+
+#ARIMA (4,1,0) has lowest AIC, but not much lower than ARMA (1,1)
+summary(arma1)
+summary(arma11)
+summary(arima111)
+summary(arima011)
+summary (aut)
+
+#Not very significant difference in residual lag structures between models.
+acf(arma11$residuals); acf(aut$residuals)
+
+
+
+```
+
+The below chart shows a 1000 step forecast for the ARMA (1,1) model. This forecast shows a simple convergence to the model's projected long run mean, which is estimated by the model to be approximately 46. Removing the first 100 observations to account for the series initializing, yields a perhaps "better" forecast of 50.8. <p>
+
+Ultimately the reliability of this forecast is subject to data. Without having any theoretical understanding of the true data generating process, it's difficult to argue that the model will be accurate over the long run. At the same time, the high AR(1) coefficient causes the series to behave similarly to a random walk. As such, we should expect significant deviations from the long run mean over the short term, even if the model appears to be stationary. This likely explains why the forecast confidence interval expands pretty quickly over the first few observations. Thus, I wouldn't be too confident in this forecast for either the short or long run. 
+
+```{r}
+
+forecast <- forecast (arma11, h = 1000)
+
+autoplot(forecast)+ theme_bw() + labs (title = " 1000 step Forecast fit for ARMA (1,1)")
+```
+
+Employing a similar model selection methodology shows the two best fitting models for the series observations 0-500 are ARIMA (1,1,1) and ARMA (1,1). Both residual series yield a significant lag at 20, which is within expectations at a 95% confidence interval. At the same time, the AIC for both models outperformed all other models tested, including those put forth by the auto.arima function. Because of the first order integration in the ARIMA (1,1,1) model, the AR (1) coefficient is rendered statistically insignificant. As such I'm slightly more inclined to favor the ARMA (1,1) to avoid potentially unnecessary first differencing. 
+
+```{r}
+train <- ts[0:500]
+
+arma1 <- Arima(train, order = c(1,0,0), include.mean = TRUE )
+arma11 <- Arima(train, order = c(1,0,1), include.mean = TRUE, include.drift = FALSE)
+arima111 <- Arima(train, order = c(1,1,1), include.mean = TRUE, include.constant = TRUE)
+arima011 <- Arima (train, order = c(0,1,1), include.mean = TRUE, include.constant = TRUE)
+aut <- auto.arima(train, allowdrift = TRUE, allowmean = TRUE, trace = TRUE, stepwise = FALSE)
+
+summary(arma1)
+summary(arma11) 
+summary(arima111)
+summary(arima011)
+
+acf(arma11$residuals, na.action = na.pass); acf(arima111$residuals)
+acf(ts); pacf(ts)
+
+forecast.arma11 <- predict (arma11, n.ahead = 500)
+forecast.arima111 <- predict (aut, n.ahead = 501)
+
+plot(forecast.arma11$mean)
+plot(forecast.arima111)
+
+ts.plot(ts(train), forecast.arma11$pred, lty=1:2, main="ARMA(1,1) Training Set Forecast")
+
+ts.plot(ts(train), forecast.arima111$pred, lty=1:2, main="ARIMA(1,1,1) Training Set Forecast")
+
+```
+
+
+
+```{r}
+
+error.arma <- sum(forecast.arma11$pred - )
+
+```
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

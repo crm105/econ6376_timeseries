@@ -29,13 +29,14 @@ bra$origin <- "BRA"
 
 #bushel of soybeans = 60 pounds. 1 KG = 2.20462 pounds Convert brazil prices to bushels
 bra$price <- bra$price / 2.20462
+bra$price <- log(bra$price)
 
 #US soybean prices per bushel 
 us <- Quandl("TFGRAIN/SOYBEANS")
 us <- us [,1:2]
 colnames(us) <- c("date","price")
 us$origin <- "USA"
-#us$price <- log(us$price)
+us$price <- log(us$price)
 
 #This ensures our data covers the same lengths of time
 bra <- bra[bra$date %in% us$date,]
@@ -48,8 +49,6 @@ df <- spread(df, origin, price)
 df$spread <- df$USA - df$BRA
 df <- na.omit(df)
 
-plot(df$spread, type = "l")
-test<- df$USA
 
 
 
@@ -92,7 +91,7 @@ summary(pre.arima)
 autoplot(acf(pre.arima$residuals))
 
 pre.arima2 <- Arima(ts.pre, order = c(1,1,1), include.mean = TRUE, include.constant = TRUE)
-summary(pre.arima2) 
+summary(pre.arima2, na.action = na.pass) 
 autoplot(acf(pre.arima2$residuals))
 plot(pre.arima2$residuals, type = "l")
 
@@ -118,7 +117,8 @@ plot(df$spread, type = "l")
 lines(arima$fitted, type = "l", color = "red")
 
 plot(arima$fitted, type = "l", col = "red")
-plot(arima$residuals)
+plot(full.arima$residuals)
+acf(full.arima$residuals)
 
 
 

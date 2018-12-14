@@ -13,8 +13,10 @@ library(tseries)
 library(ggplot2)
 library(ggfortify)
 library(forecast)
+library(dplyr)
+
 ```
-<font face = "bold", size = 16> Problem I </font> <p>
+<font face = "bold", size = 12> Problem I </font> <p>
 
 The below equation models a random walk process.
 
@@ -51,8 +53,8 @@ The conditional mean and variance of the simulated series is -1.46 and .3 respec
 If I were to believe an asset's price followed a random walk I would not attempt to forecast its future value. In a random walk model the only thing that affects the present value of a series is an unknown present shock. As such, it's impossible to use previous information to predict future values. This concept essentially underpins the Efficient Market Hypothesis.  
 
 
-<font face = "bold", size =16> Problem II </font><p>
-<font size = 8> Consider the following equation: </font>
+<font face = "bold", size =12> Problem II </font><p>
+ Consider the following equation: 
 $$x_t = 3 - .5x_{t-1}  $$
 
 
@@ -82,12 +84,7 @@ x
 
 While the long run mean of the series is 2, we should note that the series requires several iterations before reaching equillibrium. For example, the above simulation shows $x_4$ = 2.25. In fact, the series continuously oscillates around the long run mean as it converges to the mean, a characteristic of the negative $a_1$ parameter. 
 
-
-
-
-
-
-<font face = "bold", size = 16>Problem III </font> 
+<font face = "bold", size = 14>Problem III </font> 
 
 $$x_t = 3 + w_t = .5w_{t-1}$$
 The above function represents a first-order moving average process,
@@ -138,7 +135,7 @@ lowerbound <- mean(x) - (1.96 *var(x))
 print(c(lowerbound,upperbound))
 ```
 
-<font face = "bold" size = 16> Part IV </font>
+<font face = "bold" size = 14> Part IV </font>
 
 
 The main focus in this problem is to provide a model that can best fit a series that has conditional heteroskedacity. The following will demonstrate techniques for identifying autocorrelation of variance and fitting a General Autoregressive Conditional Heteroskedacity (GARCH) model to ARIMA residuals.  
@@ -160,48 +157,48 @@ labs(title="ERCOT LZ North Electricity Prices", subtitle="($/MWh)", y="", x="", 
         plot.caption = element_text (size = 12))
 
 ```
-The above series represents per megawatt hour electricity prices update every 15 seconds. In total, the series includes 31 days or 2976 observations. Augmented Dickey Fuller and Phillips-Perron tests suggest that the series is stationary in the mean. ACF and PACF plots suggest the absence of unit roots. 
+<p> The above series represents per megawatt hour electricity prices update every 15 seconds. In total, the series includes 31 days or 2976 observations. Augmented Dickey Fuller and Phillips-Perron tests suggest that the series is stationary in the mean. ACF and PACF plots suggest the absence of unit roots. 
 
 ```{r}
 adf.test(ts); PP.test(ts)
-
 acf(ts)
-pacf(ts)
+
 
 
 ```
-<font face = "bold"> Step 2: Fit an ARIMA to the series </font> <p>
+<p> <font face = "bold"> Step 2: Fit an ARIMA to the series to isolate and inspect residuals</font> <p>
 
-The auto.arima function featured in the R forecast package determined the best fitting model to be an ARMA (1,2). ACF and PCF plots of the residuals suggest that some autocorrelation in the residuals remain. Furthermore, the ACF of the square of the residuals shows high autocorrelation even after the model fit. This suggests the residuals series should be fit with a GARCH model.  
+The auto.arima function featured in the R forecast package determined the best fitting model to be an ARMA (1,2). ACF and PCF plots of the residuals suggest that some autocorrelation in the residuals remain. Furthermore, the ACF of the square of the residuals shows high autocorrelation even after the model fit. This suggests the residuals series should be fit with a GARCH model.  <p>
 ```{r}
 
 arima.fit <- auto.arima(ts, allowdrift = TRUE, allowmean = TRUE,
                         trace = TRUE)
 summary(arima.fit)
 
-acf(arima.fit$residuals) ; pacf(arima.fit$residuals)
-
-acf(arima.fit$residuals^2); pacf(arima.fit$residuals^2)
+acf(arima.fit$residuals) ; acf(arima.fit$residuals^2)
 
 ```
-The below code fits a GARCH model to the residuals. Put simply, the GARCH model will effectively fit an ARMA process to the residuals of the preceding ARIMA model. ACF plots of the GARCH residuals show that the GARCH(1,1) model fits better than GARCH(0,1). However, both models yielded statistically significant coefficients. With this model, the a1 coefficient can be interpreted as the autoregressive residual term, with b1 representing a residual moving average term. With both terms being significant, it appears that conditional heteroskedasticity exists in the series, and follows a GARCH (1,1) process. 
+<p> <font face = "bold"> Step 3: Fit a GARCH Model to Residual Series </font> <p>The below code fits a GARCH model to the residuals. Put simply, the GARCH model will effectively fit an ARMA process to the residuals of the preceding ARIMA model. ACF plots of the GARCH residuals show that the GARCH(0,1) model fits better than GARCH(0,1). However, both models yielded statistically significant coefficients. With this model, the a1 coefficient can be interpreted as the autoregressive residual term, with b1 representing a residual moving average term. Tests of both a GARCH (0,1) and GARCH(1,1) model elucidate a significant a1 coefficient and insignificant b1. As such, we can conclue the electricity series to be conditionally heteroskedastic, following a GARCH (1,0) process. 
 
 ```{r}
 
-a.garch1 <- garch(arima.fit$residuals, order=c(1,1), grad="numerical",
+a.garch1 <- garch(arima.fit$residuals, order=c(0,1), grad="numerical",
                   trace=FALSE)
 summary(a.garch1)
 acf(a.garch1$residuals, na.action = na.pass)
 
-a.garch2 <- garch(arima.fit$residuals, order=c(1,0), grad="numerical",
-                  trace=FALSE)
-summary(a.garch2)
-acf(a.garch2$residuals[-1], na.action = na.pass)
-
-?garch
+#Residuals show the 0,1 process is a better fit 
+# a.garch2 <- garch(arima.fit$residuals, grad="numerical",
+#                   trace=FALSE)
+# summary(a.garch2)
+# acf(a.garch2$residuals[-1], na.action = na.pass)
 ```
 
-<font size = 16, face = "bold"> PART V </font>
+The output from the above GARCH model can be used to improve forecasts of the original electricity series. GARCH output can help estimate the conditional variance of the series over time. This in turn, can be used to update forecast prediction error of the original series forecast. As a result, the conditional variance of the forecast will scale with the original time series process.
+
+
+
+<font size = 12, face = "bold"> PART V </font>
 <p>
 
 ```{r}
@@ -213,7 +210,7 @@ wti$DATE <- as.Date(wti$DATE, format = "%Y-%m-%d")
 
 brent <- read.csv("brent_prices.csv")
 brent$DATE <- as.Date(brent$DATE, format = "%Y-%m-%d")
-df <- df[df$DATE < "2018-01-01",]
+
 
 
 names(brent)[2] <- "brent"
@@ -221,7 +218,6 @@ names(brent)[2] <- "brent"
 df <- merge(brent, wti)
 df <- na.omit(df)
 df$spread <- df$wti - df$brent
-df <- df[df$DATE < "2018-01-01",]
 
 ggplot(df, aes(x = DATE, y = wti))+ theme_bw()+
 geom_line(color = "red")+ geom_line(aes(y = brent), color = "blue")+ 
@@ -253,32 +249,33 @@ plot(df$wti - df$brent, type = "l")
 
 
 ```
-
+The Phillips-Ouliaris test for the entire series lengths demonstrate that the full series are co-integrated. This should make sense intuitively as the principles of arbitrage suggest disturbances in one series should spillover to the other price series. 
 ```{r}
 
 po.test(cbind(df$brent, df$wti))
-
-
-
 ```
-The Phillips-Ouliaris test for the entire series lengths demonstrate that the full series are co-integrated. This should make sense intuitively as the principles of arbitrage suggest disturbances in one series should spillover to the other price series. 
+
 
 
 ```{r}
 #Subset dataframe to 2005-2017 period
 
-df1 <- df[df$DATE > "2004-12-31",]
+
 
 #Create the intervention term.
-df1$decline <- 0
-df1[df1$DATE > "2010-11-01" ,]$decline = 1
+df$decline <- 0
+df[df$DATE > "2010-11-01" ,]$decline = 1
 
-df1$reversal <- 0
-df1[df1$DATE > "2012-05-19",]$reversal = 1
+df$reversal <- 0
+df[df$DATE > "2012-05-19",]$reversal = 1
 
-df1$time <- df1$id <- seq(nrow(df1))
-df1$time <- df1$time - df1[df1$DATE == "2012-05-01",]$time
-df1$post.int <- df1$time * df1$reversal
+df$time <- df$id <- seq(nrow(df))
+df$time <- df$time - df[df$DATE == "2012-05-01",]$time
+df$post.int <- df$time * df$reversal
+
+post <- df[df$DATE > "2018-01-01",]
+df1 <- df[df$DATE > "2004-12-31" & df$DATE < "2018-01-01",]
+
 
 #Baseline Regression 
 
@@ -288,15 +285,12 @@ lm1 <- lm(df1$wti~df1$brent)
 # Baseline with time trend
 lm2 <- lm(df1$wti ~ df1$brent + df1$id)
 
-
-
 #Baseline with time trend and reversal dummy 
 lm3 <- lm(df1$wti ~ df1$brent + df1$id + df1$reversal)
 
 #Baseline with time trend reversal dummy and interaction between time 
 #and reversal
 lm4 <- lm(df1$wti ~ df1$brent + df1$id + df1$reversal + df1$post.int)
-
 
 #lm3 + decline intervention term 
 lm5 <-lm(df1$wti ~ df1$brent + df1$time + df1$reversal +
@@ -328,14 +322,61 @@ The above segment of code applies 6 different linear model specifications with t
 
 Where $brent_t$ represents brent prices. $reversal$ and $post.intervention$ are model a post intervention dummy and its interaction with time. Specifications 5 and 6 include a $decline$ term, which represents a dummy intervention beginning in December 2010. The timing of the decline intervention term coincides with the increase in the spread between Brent and WTI crude caused by  the rise of the US shale boom. 
 
-
 ```{r}
-summary(lm1)
-summary(lm2)
-summary(lm3)
-summary (lm4)
-summary (lm5)
+# summary(lm1)
+# summary(lm2)
+# summary(lm3)
+# summary (lm4)
+# summary (lm5)
 summary(lm6)
+
 ```
 
-Output from the above regressions show that specification 6, which includes brent prices, a pipeline reversal intervention dummy, a reversal time interaction term, and a shale boom intervention dummy provided the best fit. The Adjusted $R^2$ value was .974, with an F-statistic of 1434. The coefficient on the brent term was .966, which can be interpreted as the price of WTI crude is estimated to be 96.6% the price of brent. This value is significantly closer to what arbitrage theory would suggest than the .83 coefficient found in the baseline specification. The coefficient of the decline term was -15.1, suggesting that following the shale boom WTI prices declined on average by $15.10. The pipeline reversal dummy was found to be positive but statistically insignificant.   
+Output from the above regressions show that specification 6, which includes brent prices, a pipeline reversal intervention dummy, a reversal time interaction term, and a shale boom intervention dummy provided the best fit. The Adjusted $R^2$ value was .974, with an F-statistic of 1434. The coefficient on the brent term was .966, which can be interpreted as the price of WTI crude is estimated to be 96.6% the price of brent. This value is significantly closer to what arbitrage theory would suggest than the .83 coefficient found in the baseline specification. The coefficient of the decline term was -15.1, suggesting that following the shale boom WTI prices declined on average by \$15.10. The pipeline reversal dummy was found to be positive but statistically insignificant. This suggests that the initial effect of the pipeline reversal was rather small. However,  the intervention interaction with time was found to be positive and significant. Thus, WTI prices increased by about 20 cents per month following the pipeline reversal, following an initial increase of about \$1.30.  
+
+```{r}
+
+plot(lm6$residuals, type = "l")
+
+plot(df1$wti, type = "l"); lines(x = seq(length(df1$wti)), y = lm6$fitted.values, type = "l", col = "red")
+
+```
+
+ACF plots of the preffered linear model demonstrate residual autocorrelation. This suggests that a model with ARMA errors could provide a better fit. In fact acf and fitted plots of an ARIMAX model featuring the  exogenous regressors from the preffered regression specification demonstrate a better fit with no significant residual autocorrelation. Interestingly, pipeline reversal and intevention interaction coefficients of the ARIMAX model are not statistically significant, suggesting the pipeline reversal has had no effect on WTI prices. It's possible that negative price pressures associated with macro events occuring in the wake of the pipeline reversal, such as the growth slowdown in China and  increase in US shale oil production, have outweighed the theorized positive effects of the pipeline reversal.   
+
+
+```{r}
+
+xreg <- df1[c("reversal", "brent", "decline", "post.int")]
+arima1 <- auto.arima(df1$wti, xreg = xreg, allowmean = TRUE)
+summary(arima1)
+acf(arima1$residuals)
+
+
+plot(arima1$residuals); plot(lm6$residuals, type = "l")
+
+
+```
+
+Overlaying the fitted values of the preffered OLS specification demonstrate that we could potentially generate a reasonable forecast from the data. However, doing so will require assumptions of the exogenous regressors, most importantly brent crude prices. The below code forms a prediction under the naive assumption that brent crude prices remain constant moving forward through time. The point forecast for WTI prices of \$53.60 by September of 2018 shows a significant gap between the realized value of \$70.23. To build a more reliable forecast, one would need to build a more accurate prediction of brent prices (although this seemingly defeats the purpose as most assumptions and regressors used to build a brent forecast can simply be used for a WTI forecast, because of arbitrage).  
+
+```{r}
+
+ggplot(df1, aes(x = DATE, y = wti))+ geom_line() + theme_bw()+
+labs(title = "OLS Model WTI~ Brent + intervention terms", subtitle ="Fitted vs. Realized Values") + geom_line(aes(y = lm6$fitted.values), color = "red")
+
+#Let's assume brent remains constant and forecast 9 steps
+brent <- rep(df1$brent[156],9)
+post.int <- seq(157:165)
+reversal <- rep(1,9)
+decline <- rep(1,9)
+df1 <- data.frame(brent,post.int,reversal,decline)
+forecast.lm6 <- predict(lm6, df1, n.ahead = 9)
+
+
+
+```
+
+
+
+
